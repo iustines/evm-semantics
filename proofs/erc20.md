@@ -920,6 +920,11 @@ module {module}-SPEC
 
   rule
     <k> {k} </k>
+#call ACCTFROM  ACCTTO  ACCTTO  GCAP     VALUE VALUE DATA       STATIC
+#call CALLER_ID ACCT_ID ACCT_ID {gascap} 0     0     {calldata} false
+=>
+#end
+
     <exit-code> 1 </exit-code>
     <mode> NORMAL </mode>
     <schedule> DEFAULT </schedule> // TODO: pick a right one
@@ -927,36 +932,34 @@ module {module}-SPEC
 
     <ethereum>
       <evm>
-        <output> _ </output>
-        <memoryUsed> 0 => _ </memoryUsed>
-        <callDepth> CALL_DEPTH </callDepth>
-        <callStack> _ => _ </callStack>
-        <interimStates> _ </interimStates>
-        <substateStack> _ </substateStack>
+        <output> _ => {ret_val} </output>
+        <memoryUsed> MUSED => _ </memoryUsed>
+        <callDepth> DEPTH </callDepth> // NOTE: ensure to return to the original, not the sub-functions
+        <callStack> (.List => ListItem({ ACCT | GAVAIL | PGM | BYTES | CR | CD | CV | WS | LM | MUSED | PCOUNT | DEPTH | ISSTATIC })) _ </callStack>
+        <interimStates> (.List => ListItem({ <accounts> ACCTDATA </accounts> | ACCTS })) _ </interimStates>
+        <substateStack> (.List => ListItem(<substate> SUBSTATE </substate>)) _ </substateStack>
         <callLog> .Set </callLog> // for vmtest only
 
         <txExecState>
-          <program> #asMapOpCodes(#dasmOpCodes(#parseByteStack({code}), DEFAULT)) </program>
-          <programBytes> #parseByteStack({code}) </programBytes>
+          <program> PGM => #asMapOpCodes(#dasmOpCodes(#parseByteStack({code}), DEFAULT)) </program>
+          <programBytes> BYTES => #parseByteStack({code}) </programBytes>
 
-          <id> ACCT_ID </id> // contract owner
-          <caller> CALLER_ID </caller> // who called this contract; in the begining, origin
+          <id> ACCT => ACCTTO </id> // TODO: 0 instead of _ ?
+          <caller> CR => ACCTFROM </caller> // who called this contract; in the begining, origin
 
-          <callData> {calldata} </callData>
+          <callData> CD => {calldata} </callData>
 
-          <callValue> 0 </callValue>
-          <wordStack> .WordStack => _ </wordStack>
-          <localMem>
-            {localmem}
-          </localMem>
-          <pc> 0 => _ </pc>
-          <gas> {gas} </gas>
+          <callValue> CV => VALUE </callValue>
+          <wordStack> WS => .WordStack </wordStack> // TODO: need to be empty in the end?
+          <localMem> LM => _ </localMem> // TODO: add relation with <memoryUsed>
+          <pc> PCOUNT => _ </pc>
+          <gas> GAVAIL => _ </gas> // TODO: more precise wrt GCAP
           <previousGas> _ => _ </previousGas>
 
-          <static> false </static> // NOTE: non-static call
+          <static> ISSTATIC => {static} </static>
         </txExecState>
 
-        <substate>
+        <substate> // TODO: SUBSTATE
           <selfDestruct> _ </selfDestruct>
           <log>
             {log}
@@ -988,11 +991,11 @@ module {module}-SPEC
       </evm>
 
       <network>
-        <activeAccounts> ACCT_ID |-> false _:Map </activeAccounts>
+        <activeAccounts> ACCTTO |-> false _:Map </activeAccounts> // TODO: ACCTS
 
-        <accounts>
+        <accounts> // TODO: ACCTDATA
           <account>
-            <acctID> ACCT_ID </acctID>
+            <acctID> ACCTTO </acctID>
             <balance> _ </balance>
             <code> #parseByteStack({code}) </code>
             <storage>
@@ -1008,10 +1011,10 @@ module {module}-SPEC
         <messages> _ </messages>
       </network>
     </ethereum>
-    requires 0 <=Int ACCT_ID    andBool ACCT_ID    <Int (2 ^Int 160)
-     andBool 0 <=Int CALLER_ID  andBool CALLER_ID  <Int (2 ^Int 160)
+    requires 0 <=Int ACCTTO    andBool ACCTTO    <Int (2 ^Int 160)
+     andBool 0 <=Int ACCTFROM  andBool ACCTFROM  <Int (2 ^Int 160)
      andBool 0 <=Int ORIGIN_ID  andBool ORIGIN_ID  <Int (2 ^Int 160)
-     andBool 0 <=Int CALL_DEPTH andBool CALL_DEPTH <Int 1024
+     andBool 0 <=Int DEPTH      andBool DEPTH      <Int 1024
      {requires}
 
 {comments}
